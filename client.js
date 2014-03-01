@@ -1,4 +1,4 @@
-var express = require('express');
+var express = require('express.io');
 var fs = require('fs');
 var users = require('users');
 var app = express();
@@ -26,5 +26,21 @@ app.post('/create/:name', function (req, res){
     res.send(200, {id: name})
   }
 });
+
+var passport = require('passport')
+  , FacebookStrategy = require('passport-facebook').Strategy;
+
+passport.use(new FacebookStrategy({
+    clientID: '355894807818946',
+    clientSecret: '99d286cfece2e55abcdaa8f2a2f14a1f',
+    callbackURL: "http://gdqjqnqtxo.localtunnel.me/fb"
+  },
+  function(accessToken, refreshToken, profile, done) {
+    // User.findOrCreate(..., function(err, user) {
+    //   if (err) { return done(err); }
+    //   done(null, user);
+    // });
+  }
+));
 
 app.listen(process.env.PORT || 9090);
