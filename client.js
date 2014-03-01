@@ -37,7 +37,7 @@ passport.serializeUser(function(user, done) {
 
 passport.deserializeUser(function(id, done) {
   db.collection('users', function(error, collection) {
-    collection.find({uid: id}, function(err, user) {
+    collection.findOne({uid: id}, function(err, user) {
       if(!err) done(null,user)
       else done(err,null)
     });
@@ -127,8 +127,17 @@ app.use(passport.initialize());
 app.use(passport.session());
 app.use(app.router);
 
+
+app.io.route('create_room', function(req) {
+  console.log('zzz...', req.session.passport.user);
+    req.io.join(req.data);
+    req.io.room(req.data).broadcast('announce', {
+        message: 'New client in the ' + req.data + ' room. '
+    });
+});
+
 app.get('/', ensureAuthenticated, function (req, res){
-  res.render('index');
+  res.render('dashboard');
 });
 app.get('/login', function (req, res){
   res.render('login');
@@ -140,18 +149,19 @@ app.get('/zzz', function (req, res){
 });
 
 app.get('/account', ensureAuthenticated, function(req, res){
-  User.findById(req.session.passport.user, function(err, user) {
-   if(err) {
-     console.log(err);
-   } else {
-     res.render('account', { user: user});
-   };
+  db.collection('users', function(error, collection) {
+    collection.findOne({uid: req.session.passport.user}, function(err, user) {
+     if(err) {
+       console.log(err);
+     } else {
+       res.render('account', { user: user});
+     };
+    });
   });
 });
 
 app.get('/dashboard', ensureAuthenticated, function (req, res){
-  //
-  res.end();
+  res.render('dashboard');
 });
 
 // app.post('/create/:name', function (req, res){
@@ -170,7 +180,7 @@ app.get('/dashboard', ensureAuthenticated, function (req, res){
 
 app.get('/auth/facebook', passport.authenticate('facebook'));
 app.get('/fb', passport.authenticate('facebook', { failureRedirect: '/login' }), function(req, res){
-  res.redirect('/dashboard')
+  res.redirect('/')
 });
 // app.get('/auth/twitter',
 //   passport.authenticate('twitter'),
