@@ -2,23 +2,46 @@ var express = require('express.io');
 var fs = require('fs');
 var users = require('users');
 var app = express();
-
-app.http().io();
-
-var passport = require('passport')
-, FacebookStrategy = require('passport-facebook').Strategy;
+// var routes = require('./routes');
+// var config = require('./oauth.js')
+var mongo = require('mongodb')
+var passport = require('passport');
+var FacebookStrategy = require('passport-facebook').Strategy;
 var TwitterStrategy = require('passport-twitter').Strategy;
 var GithubStrategy = require('passport-github').Strategy;
 var GoogleStrategy = require('passport-google').Strategy;
 
+app.http().io();
+
+
 var dota = ['desolater', 'ursa warrior', 'centaur warcheif', 'templar assassin', 'invoker', 'legion commander', 'blood seeker', 'ancient apparition', 'crystal maiden', 'queen of pain', 'storm spirit', 'riki', 'bounty hunter', 'pudge', 'earth shaker', 'viper', 'dragon knight', 'enigma', 'nature prophet', 'faceless void', 'pugna', 'shadow sharman', 'witch doctor', 'life stealer'];
 
-// serialize and deserialize
-passport.serializeUser(function(user, done) {
-  done(null, user);
+// connect to the database
+
+var Server = mongo.Server,
+    Db = mongo.Db,
+    BSON = mongo.BSONPure;
+
+var server = new Server('localhost', 27017, {auto_reconnect: true});
+var db = new Db('tron', server, {safe: true});
+
+db.open(function(err, db) {
+  if(!err) {
+    console.log("Connected to 'tron' database");
+  }
 });
-passport.deserializeUser(function(obj, done) {
-  done(null, obj);
+
+passport.serializeUser(function(user, done) {
+  done(null, user.uid);
+});
+
+passport.deserializeUser(function(id, done) {
+  db.collection('users', function(error, collection) {
+    collection.find({uid: id}, function(err, user) {
+      if(!err) done(null,user)
+      else done(err,null)
+    });
+  });
 });
 
 passport.use(new FacebookStrategy({
@@ -27,17 +50,36 @@ passport.use(new FacebookStrategy({
   callbackURL: "http://gdqjqnqtxo.localtunnel.me/fb"
 },
 function(accessToken, refreshToken, profile, done) {
- process.nextTick(function () {
-   return done(null, profile);
- });
- console.log(refreshToken, accessToken);
+  console.log(refreshToken, accessToken);
     // User.findOrCreate({}, function(err, user) {
     //   if (err) { return done(err); }
     //   done(null, user);
     // });
     // done('ada', 'zz');
-  }
-));
+  db.collection('users', function(err, collection) {
+    collection.findOne({'uid': profile.provider+'-'+profile.id }, function(err, user) {
+      if(err) { console.log(err); }
+      if (!err && user != null) {
+        done(null, user);
+      } else {
+        collection.insert({
+          uid: profile.provider+'-'+profile.id,
+          auth_id: profile.id,
+          auth_type: profile.provider,
+          name: profile.displayName,
+          created: Date.now(),
+        }, {safe:true}, function(err, result) {
+            if (err) {
+                console.log({'error':'An error has occurred'});
+            } else {
+                console.log('Success: ' + JSON.stringify(result[0]));
+              done(null, user);
+            }
+        });
+      }
+    });
+  });
+}));
 // passport.use(new TwitterStrategy({
 //  consumerKey: config.twitter.consumerKey,
 //  consumerSecret: config.twitter.consumerSecret,
@@ -97,8 +139,19 @@ app.get('/zzz', function (req, res){
   res.send('zzz');
 });
 
+app.get('/account', ensureAuthenticated, function(req, res){
+  User.findById(req.session.passport.user, function(err, user) {
+   if(err) {
+     console.log(err);
+   } else {
+     res.render('account', { user: user});
+   };
+  });
+});
+
 app.get('/dashboard', ensureAuthenticated, function (req, res){
   //
+  res.end();
 });
 
 // app.post('/create/:name', function (req, res){
