@@ -8,8 +8,14 @@
     "faye": "~1.0.1",
     "ejs": "",
     "passport": "",
-    "passport-facebook": "",
+    "passport-facebook": "~1.0.2",
     "hashlib": "",
-    "express.io": ""
+    "express.io": "",
+    "mongodb": "",
+    "mongoose": "~3.8.8",
+    "jade": "~1.2.0",
+    "passport-twitter": "~1.0.2",
+    "passport-github": "~0.1.5",
+    "passport-google": "~0.3.0"
   }
 }
