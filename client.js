@@ -1,3 +1,4 @@
+var _ = require('underscore');
 var express = require('express.io');
 var fs = require('fs');
 var users = require('users');
@@ -10,6 +11,15 @@ var FacebookStrategy = require('passport-facebook').Strategy;
 var TwitterStrategy = require('passport-twitter').Strategy;
 var GithubStrategy = require('passport-github').Strategy;
 var GoogleStrategy = require('passport-google').Strategy;
+var rooms = {};
+var findInRooms = function(id){
+  for(x in rooms){
+    if(rooms[x].players[id]){
+      return x;
+    }
+  }
+  return false;
+};
 
 app.http().io();
 
@@ -47,10 +57,9 @@ passport.deserializeUser(function(id, done) {
 passport.use(new FacebookStrategy({
   clientID: '355894807818946',
   clientSecret: '99d286cfece2e55abcdaa8f2a2f14a1f',
-  callbackURL: "http://gdqjqnqtxo.localtunnel.me/fb"
+  callbackURL: 'http://wqialikuuj.localtunnel.me/auth/facebook/callback'
 },
 function(accessToken, refreshToken, profile, done) {
-  console.log(refreshToken, accessToken);
     // User.findOrCreate({}, function(err, user) {
     //   if (err) { return done(err); }
     //   done(null, user);
@@ -68,6 +77,7 @@ function(accessToken, refreshToken, profile, done) {
           auth_type: profile.provider,
           name: profile.displayName,
           created: Date.now(),
+          image: 'http://graph.facebook.com/'+profile.id+'/picture'
         }, {safe:true}, function(err, result) {
             if (err) {
                 console.log({'error':'An error has occurred'});
@@ -81,27 +91,47 @@ function(accessToken, refreshToken, profile, done) {
   });
 }));
 // passport.use(new TwitterStrategy({
-//  consumerKey: config.twitter.consumerKey,
-//  consumerSecret: config.twitter.consumerSecret,
-//  callbackURL: config.twitter.callbackURL
+//   consumerKey: config.twitter.consumerKey,
+//   consumerSecret: config.twitter.consumerSecret,
+//   callbackURL: config.twitter.callbackURL
 // },
 // function(accessToken, refreshToken, profile, done) {
-//  process.nextTick(function () {
-//    return done(null, profile);
-//  });
+//   process.nextTick(function () {
+//     return done(null, profile);
+//   });
 // }
 // ));
-// passport.use(new GithubStrategy({
-//  clientID: config.github.clientID,
-//  clientSecret: config.github.clientSecret,
-//  callbackURL: config.github.callbackURL
-// },
-// function(accessToken, refreshToken, profile, done) {
-//  process.nextTick(function () {
-//    return done(null, profile);
-//  });
-// }
-// ));
+passport.use(new GithubStrategy({
+  clientID: '0875c7c49030f736d2ab',
+  clientSecret: 'e80252b32d9111a0377c80f483de80119b552066',
+  callbackURL: 'http://wqialikuuj.localtunnel.me/auth/github/callback'
+},
+function(accessToken, refreshToken, profile, done) {
+  db.collection('users', function(err, collection) {
+    collection.findOne({'uid': profile.provider+'-'+profile.id }, function(err, user) {
+      if(err) { console.log(err); }
+      if (!err && user != null) {
+        done(null, user);
+      } else {
+        collection.insert({
+          uid: profile.provider+'-'+profile.id,
+          auth_id: profile.id,
+          auth_type: profile.provider,
+          name: profile.displayName,
+          image: profile._json.avatar_url,
+          created: Date.now(),
+        }, {safe:true}, function(err, result) {
+            if (err) {
+                console.log({'error':'An error has occurred'});
+            } else {
+                console.log('Success: ' + JSON.stringify(result[0]));
+              done(null, user);
+            }
+        });
+      }
+    });
+  });
+}));
 // passport.use(new GoogleStrategy({
 //  returnURL: config.google.returnURL,
 //  realm: config.google.realm
@@ -128,40 +158,93 @@ app.use(passport.session());
 app.use(app.router);
 
 
-app.io.route('create_room', function(req) {
-  console.log('zzz...', req.session.passport.user);
-    req.io.join(req.data);
-    req.io.room(req.data).broadcast('announce', {
-        message: 'New client in the ' + req.data + ' room. '
-    });
+app.io.route('create:room', function(req) {
+  var uid = req.session.passport.user;
+  console.log('creating room: ', uid);
+  req.io.join(uid);
+  rooms[uid] = {
+    id: uid,
+    creator: req.session.user.name,
+    creator_image: req.session.user.image,
+    users: 1,
+    state: 'waiting',
+    players: {}
+  };
+  rooms[uid].players[uid] = {
+    name: req.session.user.name,
+    image: req.session.user.image
+  };
+  console.log(rooms);
+  app.io.broadcast('add:room-list', {
+    id: uid,
+    name: req.session.user.name,
+    image: req.session.user.image
+  });
+  req.io.respond({
+    success: 'Creted a room by: ' + uid
+  });
+});
+
+app.io.route('connect', function (req, res){
+  var user = req.session && req.session.passport && req.session.passport.user
+  if(user){
+    // if()
+  }
+});
+
+app.io.route('disconnect', function (req, res){
+  //
+  console.log("DC");
+  console.log("user: "+(req.session && req.session.passport &&req.session.passport.user));
 });
 
 app.get('/', ensureAuthenticated, function (req, res){
-  res.render('dashboard');
+  var uid = req.session.passport.user
+  db.collection('users', function(error, collection) {
+    collection.findOne({uid: uid}, function(err, user) {
+      req.session.user = user;
+      res.render('dashboard',{
+        list: _.map(rooms, function(v,i) { return {name: v.creator, id: v.id}})
+      });
+    });
+  });
 });
 app.get('/login', function (req, res){
   res.render('login');
 });
 
-app.get('/zzz', function (req, res){
-  // console.log(req.user)
-  res.send('zzz');
-});
-
 app.get('/account', ensureAuthenticated, function(req, res){
-  db.collection('users', function(error, collection) {
-    collection.findOne({uid: req.session.passport.user}, function(err, user) {
-     if(err) {
-       console.log(err);
-     } else {
-       res.render('account', { user: user});
-     };
-    });
-  });
+   if(err) {
+     console.log(err);
+   } else {
+     res.render('account', { user: req.session.user});
+   };
 });
 
 app.get('/dashboard', ensureAuthenticated, function (req, res){
-  res.render('dashboard');
+  res.redirect('/');
+});
+
+app.get('/room/:id', ensureAuthenticated, function (req, res){
+  var id = req.params.id || '';
+  if(id == 'create'){
+    res.redirect('/room/'+req.session.passport.user);
+  } else if(id == ''){
+    res.render('404', {message: 'Room not found'});
+  } else if(rooms[id] && rooms[id].users >= 4){
+    res.render('404', {message: 'Room full'})
+  } else {
+    var arr = [];
+    if(req.session.passport.user != id)
+      arr = _.map(rooms[id].players, function(v,i) { return v.name});
+    arr.push(req.session.user.name);
+    console.log(arr)
+    res.render('room', {
+      user: req.session.user,
+      room: id,
+      list: arr
+    });
+  }
 });
 
 // app.post('/create/:name', function (req, res){
@@ -179,7 +262,7 @@ app.get('/dashboard', ensureAuthenticated, function (req, res){
 
 
 app.get('/auth/facebook', passport.authenticate('facebook'));
-app.get('/fb', passport.authenticate('facebook', { failureRedirect: '/login' }), function(req, res){
+app.get('/auth/facebook/callback', passport.authenticate('facebook', { failureRedirect: '/login' }), function(req, res){
   res.redirect('/')
 });
 // app.get('/auth/twitter',
@@ -191,15 +274,11 @@ app.get('/fb', passport.authenticate('facebook', { failureRedirect: '/login' }),
 //   function(req, res) {
 //    res.redirect('/account');
 //  });
-// app.get('/auth/github',
-//   passport.authenticate('github'),
-//   function(req, res){
-//   });
-// app.get('/auth/github/callback',
-//   passport.authenticate('github', { failureRedirect: '/' }),
-//   function(req, res) {
-//    res.redirect('/account');
-//  });
+app.get('/auth/github', passport.authenticate('github'));
+app.get('/auth/github/callback', passport.authenticate('github', { failureRedirect: '/login' }),
+  function(req, res) {
+   res.redirect('/');
+ });
 // app.get('/auth/google',
 //   passport.authenticate('google'),
 //   function(req, res){
@@ -220,4 +299,5 @@ app.listen(process.env.PORT || 9090);
 function ensureAuthenticated(req, res, next) {
   if (req.isAuthenticated()) { return next(); }
   res.redirect('/login')
+  // return next();
 }

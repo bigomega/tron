@@ -1,0 +1,21 @@
+h1 Room #{id}
+ul.player-list
+- for (var x = 0; x < list.length; x++)
+  li #{list[x]}
+script(src="/js/jquery-1.10.2.min.js")
+script(src="/socket.io/socket.io.js")
+
+if user.uid == room
+  script.
+    io = io.connect()
+    io.emit('create:room', function (d){ });
+    io.on('update:player-list', function (data){
+      //
+    });
+else
+  script.
+    io = io.connect()
+    io.emit('join:room', function (d){ });
+    io.on('update:player-list', function (data){
+      //
+    });

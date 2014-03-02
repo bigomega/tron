@@ -1,4 +1,21 @@
+h1 Dashboard
+a(href="/room/create") Create a Room
+h3 Or join one
+ul.room-list
+- for (var x = 0; x < list.length; x++)
+  li
+    a(href="/room/#{list[x].id}") #{list[x].name}
 script(src="/js/jquery-1.10.2.min.js")
 script(src="/socket.io/socket.io.js")
 script.
   io = io.connect()
+  // io.emit('create:room')
+  io.on('add:room-list', function (data){
+    $('.room-list').append('<li id="'+data.id+'"><a href="/room/'+data.id+'">'+data.name+'</a></li>');
+  });
+  io.on('remove:room-list', function (data){
+    $('.room-list li#'+data.id).remove();
+  });
+  io.emit('get:room-list', {}, function (data){
+    //
+  });
