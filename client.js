@@ -20,6 +20,9 @@ var findInRooms = function(id){
   }
   return false;
 };
+var getPlayersInRoom = function(rid){
+  return _.map(rooms[rid] && rooms[rid].players, function(v){ return v;});
+};
 
 app.http().io();
 
@@ -158,33 +161,6 @@ app.use(passport.session());
 app.use(app.router);
 
 
-app.io.route('create:room', function(req) {
-  var uid = req.session.passport.user;
-  console.log('creating room: ', uid);
-  req.io.join(uid);
-  rooms[uid] = {
-    id: uid,
-    creator: req.session.user.name,
-    creator_image: req.session.user.image,
-    users: 1,
-    state: 'waiting',
-    players: {}
-  };
-  rooms[uid].players[uid] = {
-    name: req.session.user.name,
-    image: req.session.user.image
-  };
-  console.log(rooms);
-  app.io.broadcast('add:room-list', {
-    id: uid,
-    name: req.session.user.name,
-    image: req.session.user.image
-  });
-  req.io.respond({
-    success: 'Creted a room by: ' + uid
-  });
-});
-
 app.io.route('connect', function (req, res){
   var user = req.session && req.session.passport && req.session.passport.user
   if(user){
@@ -196,6 +172,42 @@ app.io.route('disconnect', function (req, res){
   //
   console.log("DC");
   console.log("user: "+(req.session && req.session.passport &&req.session.passport.user));
+});
+
+app.io.route('create:room', function(req) {
+  var uid = req.session.passport.user;
+  console.log('creating room: ', uid);
+  req.io.join(uid);
+  rooms[uid] = {
+    id: uid,
+    creator: req.session.user.name,
+    creator_image: req.session.user.image,
+    users: 1,
+    state: 'waiting',
+    players: {},
+  };
+  rooms[uid].players[uid] = req.session.user;
+  app.io.broadcast('add:room-list', {
+    id: uid,
+    name: req.session.user.name,
+    image: req.session.user.image
+  });
+  req.io.respond({ success: 'Creted a room by: ' + uid });
+});
+
+app.io.route('join:room', function(req){
+  var uid = req.session.passport.user;
+  var data = req.data || {};
+  console.log('joining room: ', uid);
+  req.io.join(data.room);
+  room[id].players[uid] = req.session.user;
+  room[id].users += 1;
+  app.io.room(id).broadcast('update:player-list', {list: getPlayersInRoom(id)})
+});
+
+app.io.route('leave:room', function(req){
+  var uid = req.session.passport.user;
+   //
 });
 
 app.get('/', ensureAuthenticated, function (req, res){
@@ -227,15 +239,20 @@ app.get('/dashboard', ensureAuthenticated, function (req, res){
 
 app.get('/room/:id', ensureAuthenticated, function (req, res){
   var id = req.params.id || '';
+  var uid = req.session.passport.user;
   if(id == 'create'){
-    res.redirect('/room/'+req.session.passport.user);
+    res.redirect('/room/'+uid);
   } else if(id == ''){
     res.render('404', {message: 'Room not found'});
   } else if(rooms[id] && rooms[id].users >= 4){
-    res.render('404', {message: 'Room full'})
+    res.render('404', {message: 'Room full... Please select another room'});
+  } else if(!rooms[id] && uid != id){
+    res.render('404', {message: 'Room does not exits... Please create a room or join from list'});
+  // } else if(rooms[id] && ){
+  //   //
   } else {
     var arr = [];
-    if(req.session.passport.user != id)
+    if(uid != id)
       arr = _.map(rooms[id].players, function(v,i) { return v.name});
     arr.push(req.session.user.name);
     console.log(arr)

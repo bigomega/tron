@@ -8,14 +8,22 @@ script(src="/socket.io/socket.io.js")
 if user.uid == room
   script.
     io = io.connect()
-    io.emit('create:room', function (d){ });
     io.on('update:player-list', function (data){
-      //
+      var list = data.list;
+      $('.player-list').html('');
+      list.forEach(function(item){
+        $('.player-list').append('<li>'+item.name+'</li>');
+      });
     });
+    io.emit('create:room', {}, function (d){ });
 else
   script.
     io = io.connect()
-    io.emit('join:room', function (d){ });
     io.on('update:player-list', function (data){
-      //
+      var list = data.list;
+      $('.player-list').html('');
+      list.forEach(function(item){
+        $('.player-list').append('<li>'+item.name+'</li>');
+      });
     });
+    io.emit('join:room', {room: '#{room}'}, function (d){ });

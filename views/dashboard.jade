@@ -9,13 +9,10 @@ script(src="/js/jquery-1.10.2.min.js")
 script(src="/socket.io/socket.io.js")
 script.
   io = io.connect()
-  // io.emit('create:room')
-  io.on('add:room-list', function (data){
-    $('.room-list').append('<li id="'+data.id+'"><a href="/room/'+data.id+'">'+data.name+'</a></li>');
-  });
-  io.on('remove:room-list', function (data){
-    $('.room-list li#'+data.id).remove();
-  });
-  io.emit('get:room-list', {}, function (data){
-    //
+  io.on('update:room-list', function (data){
+    var list = data.list;
+    $('.room-list').html('');
+    list.forEach(function(item){
+      $('.room-list').append('<li><a href="/room/'+item.id+'">'+item.name+'</a></li>');
+    });
   });
